@@ -22,6 +22,7 @@ DATABASE_URL = config("DATABASE_URL")
 async_engine = create_async_engine(DATABASE_URL, echo=True)
 
 async_session_maker = async_sessionmaker(async_engine, expire_on_commit=False, class_=AsyncSession)
+# expire_on_commit=False - можно не делать refresh, т.к. созраняет предыдущее состояние объекта
 
 
 
