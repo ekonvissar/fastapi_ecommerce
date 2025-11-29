@@ -9,7 +9,6 @@ from app.models.categories import Category as CategoryModel
 from app.db_depends import get_async_db
 
 
-# Создаём маршрутизатор для товаров
 router = APIRouter(
     prefix="/products",
     tags=["products"],
@@ -18,9 +17,7 @@ router = APIRouter(
 
 @router.get("/", response_model=list[ProductSchema])
 async def get_all_products(db: AsyncSession = Depends(get_async_db)):
-    """
-    Возвращает список всех товаров.
-    """
+
     result = await db.scalars(select(ProductModel)
                           .where(ProductModel.is_active == True))
     return  result.all()
@@ -28,9 +25,7 @@ async def get_all_products(db: AsyncSession = Depends(get_async_db)):
 
 @router.post("/", response_model=ProductSchema, status_code=status.HTTP_201_CREATED)
 async def create_product(product: ProductCreate, db: AsyncSession = Depends(get_async_db)):
-    """
-    Создаёт новый товар.
-    """
+
     category_result = await db.scalars(select(CategoryModel)
                               .where(CategoryModel.id == product.category_id,
                                      CategoryModel.is_active == True))
@@ -47,9 +42,7 @@ async def create_product(product: ProductCreate, db: AsyncSession = Depends(get_
 
 @router.get("/category/{category_id}", response_model=list[ProductSchema])
 async def get_products_by_category(category_id: int, db: AsyncSession = Depends(get_async_db)):
-    """
-    Возвращает список товаров в указанной категории по её ID.
-    """
+
     category_result = await db.scalars(select(CategoryModel)
                                        .where(CategoryModel.id == category_id,
                                               CategoryModel.is_active == True))
@@ -67,9 +60,7 @@ async def get_products_by_category(category_id: int, db: AsyncSession = Depends(
 
 @router.get("/{product_id}", response_model=ProductSchema)
 async def get_product(product_id: int, db: AsyncSession = Depends(get_async_db)):
-    """
-    Возвращает детальную информацию о товаре по его ID.
-    """
+
     product_result = await db.scalars(
         select(ProductModel).where(ProductModel.id == product_id,
                                    ProductModel.is_active == True)
@@ -90,9 +81,7 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_async_db))
 
 @router.put("/{product_id}", response_model=ProductSchema)
 async def update_product(product_id: int, product: ProductCreate, db: AsyncSession = Depends(get_async_db)):
-    """
-    Обновляет товар по его ID.
-    """
+
     product_result = await db.scalars(
         select(ProductModel).where(ProductModel.id == product_id,
                ProductModel.is_active == True)
@@ -119,9 +108,7 @@ async def update_product(product_id: int, product: ProductCreate, db: AsyncSessi
 
 @router.delete("/{product_id}", status_code=status.HTTP_200_OK)
 async def delete_product(product_id: int, db: AsyncSession = Depends(get_async_db)):
-    """
-    Удаляет товар по его ID.
-    """
+
     product_result = await db.scalars(
         select(ProductModel).where(ProductModel.id == product_id,
                                    ProductModel.is_active == True)
