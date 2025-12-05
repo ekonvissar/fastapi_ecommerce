@@ -32,5 +32,6 @@ class Product(Base):
 
     category: Mapped["Category"] = relationship(back_populates="products")
     seller = relationship("User", back_populates="products")
+    reviews = relationship("Review", back_populates="product")
 
 
