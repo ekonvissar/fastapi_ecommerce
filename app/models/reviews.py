@@ -21,4 +21,4 @@ class Review(Base):
     )
 
     user = relationship("User", back_populates="reviews")
-    product = relationship("Product", back_populates="reviews")
+    product = relationship("Product", back_populates="review")
