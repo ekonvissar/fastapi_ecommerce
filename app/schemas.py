@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from decimal import Decimal
 from typing import Annotated
@@ -35,6 +37,7 @@ class ProductCreate(BaseModel):
     image_url: Annotated[str | None, Field(None, max_length=200, description="URL изображения товара")]
     stock: Annotated[int,  Field(ge=0, description="Количество товара на складе (0 или больше)")]
     category_id: Annotated[int,  Field(description="ID категории, к которой относится товар")]
+    rating: Annotated[float, Field(ge=1, le=5, description="Рейтинг продукта")]
 
 
 class Product(BaseModel):
@@ -48,6 +51,7 @@ class Product(BaseModel):
     price: Annotated[Decimal, Field(description="Цена товара в рублях", gt=0, decimal_places=2)]
     image_url: Annotated[str | None, Field(None, description="URL изображения товара")]
     stock: Annotated[int,  Field(description="Количество товара на складе")]
+    rating: Annotated[float, Field(description="Рейтинг продукта")]
     category_id: Annotated[int,  Field(description="ID категории")]
     is_active: Annotated[bool, Field(description="Активность товара")]
 
@@ -59,10 +63,26 @@ class UserCreate(BaseModel):
     role: Annotated[str, Field(default="buyer", pattern="^(buyer|seller)$", description="Роль: 'buyer' или 'seller'")]
 
 class User(BaseModel):
-    id: int
-    email: EmailStr
-    is_active: bool
-    role: str
+    id: Annotated[int, Field(description="Уникальный идентификатор пользователя")]
+    email: Annotated[EmailStr, Field(description="Логин или почта")]
+    is_active: Annotated[bool, Field(description="Активность пользователя")]
+    role: Annotated[str, Field(description="Роль пользователя")]
+
+    model_config = ConfigDict(from_attributes=True)
+
+class ReviewCreate(BaseModel):
+    comment: Annotated[str, Field(min_length=1, max_length=1000, description="Отзыв (длина от 1 до 1000 символов)")]
+    grade: Annotated[int, Field(ge=1, le=5, description="Рейтнг пользователя от 1 до 5")]
+
+class Review(BaseModel):
+    id: Annotated[int, Field(description="Уникальный идентификатор отзыва")]
+    user_id: Annotated[int, Field(description="Уникальный идентификатор пользователя, оставивший отзыв")]
+    product_id: Annotated[int, Field(description="Уникальный идентификатор продукта, на который оставляют отзыв")]
+    comment: Annotated[str | None, Field(description="Отзыв пользователя на товар")]
+    comment_date: Annotated[datetime, Field(description="Дата оставления отзыва")]
+    grade: Annotated[int, Field(description="Оценка паользователя от 1 до 5")]
+    is_active: Annotated[bool, Field(description="Активность отзыва")]
+
     model_config = ConfigDict(from_attributes=True)
 
 class RefreshTokenRequest(BaseModel):

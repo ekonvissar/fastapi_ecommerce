@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Text, CheckConstraint
+from sqlalchemy import ForeignKey, Text, CheckConstraint, func
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from app.database import Base
@@ -12,7 +12,7 @@ class Review(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False)
     comment: Mapped[str | None] = mapped_column(Text, default=None, nullable=True)
-    comment_date: Mapped[datetime] = mapped_column(default=datetime.now, nullable=False)
+    comment_date: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     grade: Mapped[int] = mapped_column(nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True)
 
