@@ -60,7 +60,7 @@ class Product(BaseModel):
 class UserCreate(BaseModel):
     email: Annotated[EmailStr, Field(description="Email пользователя")]
     password: Annotated[str, Field(min_length=8, description="Пароль (минимум 8 символов)")]
-    role: Annotated[str, Field(default="buyer", pattern="^(buyer|seller)$", description="Роль: 'buyer' или 'seller'")]
+    role: Annotated[str, Field(default="buyer", pattern="^(buyer|seller|admin)$", description="Роль: 'buyer', 'seller' или 'admin'")]
 
 class User(BaseModel):
     id: Annotated[int, Field(description="Уникальный идентификатор пользователя")]
@@ -71,14 +71,15 @@ class User(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class ReviewCreate(BaseModel):
-    comment: Annotated[str, Field(min_length=1, max_length=1000, description="Отзыв (длина от 1 до 1000 символов)")]
+    product_id: Annotated[int, Field(description="Уникальный идентификатор товара")]
+    comment: Annotated[str | None, Field(None, min_length=1, max_length=1000, description="Отзыв (длина от 1 до 1000 символов)")]
     grade: Annotated[int, Field(ge=1, le=5, description="Рейтнг пользователя от 1 до 5")]
 
 class Review(BaseModel):
     id: Annotated[int, Field(description="Уникальный идентификатор отзыва")]
     user_id: Annotated[int, Field(description="Уникальный идентификатор пользователя, оставивший отзыв")]
     product_id: Annotated[int, Field(description="Уникальный идентификатор продукта, на который оставляют отзыв")]
-    comment: Annotated[str | None, Field(description="Отзыв пользователя на товар")]
+    comment: Annotated[str | None, Field(None, description="Отзыв пользователя на товар")]
     comment_date: Annotated[datetime, Field(description="Дата оставления отзыва")]
     grade: Annotated[int, Field(description="Оценка паользователя от 1 до 5")]
     is_active: Annotated[bool, Field(description="Активность отзыва")]
