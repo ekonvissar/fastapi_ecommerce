@@ -96,3 +96,31 @@ class ProductList(BaseModel):
     page_size: Annotated[int, Field(ge=1, description="Количество элементов на странице")]
 
     model_config = ConfigDict(from_attributes=True)  # Для чтения из ORM-объектов
+
+class CartItemBase(BaseModel):
+    product_id: Annotated[int, Field(description="ID товара")]
+    quantity: Annotated[int, Field(ge=1, description="Количество товара")]
+
+class CartItemCreate(CartItemBase):
+    pass
+
+class CartItemUpdate(CartItemBase):
+    quantity: Annotated[int, Field(..., ge=1, description="Новое количество товара")]
+    # Только это поле в теле запроса
+
+class CartItem(BaseModel):
+    id: Annotated[int, Field(..., description="ID позиции корзины")]
+    quantity: Annotated[int, Field(..., ge=1, description="Количество товара")]
+    product: Annotated[Product, Field(..., description="Информация о товаре")]
+
+    model_config = ConfigDict(from_attributes=True)
+# выходная модель
+
+class Cart(BaseModel):
+    user_id: Annotated[int, Field(..., description="ID пользователя")]
+    items: Annotated[list[CartItem], Field(default_factory=list, description="Содержимое корзины")]
+    total_quantity: Annotated[int, Field(..., ge=0, description="Общее количество товаров")]
+    total_price: Annotated[Decimal, Field(..., ge=0, description="Общая стоимость товаров")]
+
+    model_config = ConfigDict(from_attributes=True)
+# главная выходная модель, которая представляет всю корзину пользователя
