@@ -4,63 +4,54 @@ from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from decimal import Decimal
 from typing import Annotated
 
+
 class CategoryCreate(BaseModel):
-    """
-    Модель для создания и обновления категории.
-    Используется в POST и PUT запросах.
-    """
-    name: Annotated[str,  Field(min_length=3, max_length=50, description="Название категории (3-50 символов)")]
-    parent_id: Annotated[int | None,  Field(None, description='ID родительской категории, если есть')]
+    name: Annotated[str, Field(min_length=3, max_length=50, description="Название категории (3-50 символов)")]
+    parent_id: Annotated[int | None, Field(None, description='ID родительской категории, если есть')]
+
 
 class Category(BaseModel):
-    """
-    Модель для ответа с данными категории.
-    Используется в GET-запросах.
-    """
-    id: Annotated[int,  Field(description='Уникальный идентификатор категории')]
+    id: Annotated[int, Field(description='Уникальный идентификатор категории')]
     name: Annotated[str, Field(description='Название категории')]
     parent_id: Annotated[int | None, Field(None, description="ID родительской категории, если есть")]
     is_active: Annotated[bool, Field(description="Активность категории")]
 
+
 model_config = ConfigDict(from_attributes=True)
 
+
 class ProductCreate(BaseModel):
-    """
-    Модель для создания и обновления товара.
-    Используется в POST и PUT запросах.
-    """
-    name: Annotated[str,  Field(min_length=3, max_length=100,
-                      description="Название товара (3-100 символов)")]
+    name: Annotated[str, Field(min_length=3, max_length=100,
+                               description="Название товара (3-100 символов)")]
     description: Annotated[str | None, Field(None, max_length=500,
                                              description="Описание товара (до 500 символов)")]
     price: Annotated[Decimal, Field(gt=0, description="Цена товара (больше 0)", decimal_places=2)]
     image_url: Annotated[str | None, Field(None, max_length=200, description="URL изображения товара")]
-    stock: Annotated[int,  Field(ge=0, description="Количество товара на складе (0 или больше)")]
-    category_id: Annotated[int,  Field(description="ID категории, к которой относится товар")]
+    stock: Annotated[int, Field(ge=0, description="Количество товара на складе (0 или больше)")]
+    category_id: Annotated[int, Field(description="ID категории, к которой относится товар")]
     rating: Annotated[float, Field(ge=1, le=5, description="Рейтинг продукта")]
 
 
 class Product(BaseModel):
-    """
-    Модель для ответа с данными товара.
-    Используется в GET-запросах.
-    """
-    id: Annotated[int,  Field(description="Уникальный идентификатор товара")]
-    name: Annotated[str,  Field(description="Название товара")]
+    id: Annotated[int, Field(description="Уникальный идентификатор товара")]
+    name: Annotated[str, Field(description="Название товара")]
     description: Annotated[str | None, Field(None, description="Описание товара")]
     price: Annotated[Decimal, Field(description="Цена товара в рублях", gt=0, decimal_places=2)]
     image_url: Annotated[str | None, Field(None, description="URL изображения товара")]
-    stock: Annotated[int,  Field(description="Количество товара на складе")]
+    stock: Annotated[int, Field(description="Количество товара на складе")]
     rating: Annotated[float, Field(description="Рейтинг продукта")]
-    category_id: Annotated[int,  Field(description="ID категории")]
+    category_id: Annotated[int, Field(description="ID категории")]
     is_active: Annotated[bool, Field(description="Активность товара")]
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class UserCreate(BaseModel):
     email: Annotated[EmailStr, Field(description="Email пользователя")]
     password: Annotated[str, Field(min_length=8, description="Пароль (минимум 8 символов)")]
-    role: Annotated[str, Field(default="buyer", pattern="^(buyer|seller|admin)$", description="Роль: 'buyer', 'seller' или 'admin'")]
+    role: Annotated[str, Field(default="buyer", pattern="^(buyer|seller|admin)$",
+                               description="Роль: 'buyer', 'seller' или 'admin'")]
+
 
 class User(BaseModel):
     id: Annotated[int, Field(description="Уникальный идентификатор пользователя")]
@@ -70,10 +61,13 @@ class User(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class ReviewCreate(BaseModel):
     product_id: Annotated[int, Field(description="Уникальный идентификатор товара")]
-    comment: Annotated[str | None, Field(None, min_length=1, max_length=1000, description="Отзыв (длина от 1 до 1000 символов)")]
+    comment: Annotated[
+        str | None, Field(None, min_length=1, max_length=1000, description="Отзыв (длина от 1 до 1000 символов)")]
     grade: Annotated[int, Field(ge=1, le=5, description="Рейтнг пользователя от 1 до 5")]
+
 
 class Review(BaseModel):
     id: Annotated[int, Field(description="Уникальный идентификатор отзыва")]
@@ -86,8 +80,10 @@ class Review(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
 
 class ProductList(BaseModel):
     items: Annotated[list[Product], Field(description="Товары для текущей страницы")]
@@ -97,16 +93,20 @@ class ProductList(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)  # Для чтения из ORM-объектов
 
+
 class CartItemBase(BaseModel):
     product_id: Annotated[int, Field(description="ID товара")]
     quantity: Annotated[int, Field(ge=1, description="Количество товара")]
 
+
 class CartItemCreate(CartItemBase):
     pass
 
-class CartItemUpdate(CartItemBase):
+
+class CartItemUpdate(BaseModel):
     quantity: Annotated[int, Field(..., ge=1, description="Новое количество товара")]
     # Только это поле в теле запроса
+
 
 class CartItem(BaseModel):
     id: Annotated[int, Field(..., description="ID позиции корзины")]
@@ -114,6 +114,8 @@ class CartItem(BaseModel):
     product: Annotated[Product, Field(..., description="Информация о товаре")]
 
     model_config = ConfigDict(from_attributes=True)
+
+
 # выходная модель
 
 class Cart(BaseModel):
@@ -123,4 +125,37 @@ class Cart(BaseModel):
     total_price: Annotated[Decimal, Field(..., ge=0, description="Общая стоимость товаров")]
 
     model_config = ConfigDict(from_attributes=True)
+
+
 # главная выходная модель, которая представляет всю корзину пользователя
+
+class OrderItem(BaseModel):
+    id: int = Field(..., description="ID позиции заказа")
+    product_id: int = Field(..., description="ID товара")
+    quantity: int = Field(..., ge=1, description="Количество")
+    unit_price: Decimal = Field(..., ge=0, description="Цена за единицу на момент покупки")
+    total_price: Decimal = Field(..., ge=0, description="Сумма по позиции")
+    product: Product | None = Field(None, description="Полная информация о товаре")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class Order(BaseModel):
+    id: int = Field(..., description="ID заказа")
+    user_id: int = Field(..., description="ID пользователя")
+    status: str = Field(..., description="Текущий статус заказа")
+    total_amount: Decimal = Field(..., ge=0, description="Общая стоимость")
+    created_at: datetime = Field(..., description="Когда заказ был создан")
+    updated_at: datetime = Field(..., description="Когда последний раз обновлялся")
+    items: list[OrderItem] = Field(default_factory=list, description="Список позиций")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrderList(BaseModel):
+    items: list[Order] = Field(..., description="Заказы на текущей странице")
+    total: int = Field(ge=0, description="Общее количество заказов")
+    page: int = Field(ge=1, description="Текущая страница")
+    page_size: int = Field(ge=1, description="Размер страницы")
+
+    model_config = ConfigDict(from_attributes=True)

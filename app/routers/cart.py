@@ -98,21 +98,22 @@ async def add_item_to_cart(
 
 @router.put("/items/{product_id}", response_model=CartItemSchema)
 async def update_cart_item(
-        product_id: int,
-        payload: CartItemUpdate,
-        db: AsyncSession = Depends(get_async_db),
-        current_user: UserModel = Depends(get_current_user),
+    product_id: int,
+    payload: CartItemUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserModel = Depends(get_current_user),
 ):
-    await _ensure_product_available(db, payload.product_id)
+    await _ensure_product_available(db, product_id)
 
     cart_item = await _get_cart_item(db, current_user.id, product_id)
     if not cart_item:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Product with id {product_id} not found")
+        raise HTTPException(status_code=404, detail="Cart item not found")
 
-    cart_item.quantity += payload.quantity
+    cart_item.quantity = payload.quantity
     await db.commit()
     updated_item = await _get_cart_item(db, current_user.id, product_id)
     return updated_item
+
 
 @router.delete("/items/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_cart_item(

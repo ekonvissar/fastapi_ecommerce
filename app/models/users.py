@@ -6,9 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 if TYPE_CHECKING:
-    from app.models import Product
-    from app.models import Review
-    from app.models import CartItem
+    from app.models import Product, Review, CartItem, Order
 
 class User(Base):
     __tablename__ = "users"
@@ -22,5 +20,6 @@ class User(Base):
     products: Mapped[list["Product"]] = relationship("Product", back_populates="seller")
     reviews: Mapped[list["Review"]] = relationship("Review", back_populates="user")
     cart_items: Mapped[list["CartItem"]] = relationship("CartItem", back_populates="user", cascade="all, delete-orphan")
+    orders: Mapped[list["Order"]] = relationship("Order", back_populates="user", cascade="all, delete-orphan")
 
 

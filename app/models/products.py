@@ -11,10 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 if TYPE_CHECKING:
-    from app.models import Category
-    from app.models import Review
-    from app.models import User
-    from app.models import CartItem
+    from app.models import Category, Review, User, CartItem, OrderItem
 
 
 class Product(Base):
@@ -49,6 +46,7 @@ class Product(Base):
     seller: Mapped["User"] = relationship("User", back_populates="products")
     review: Mapped["Review"] = relationship("Review", back_populates="product")
     cart_items: Mapped[list["CartItem"]] = relationship("CartItem", back_populates="product", cascade="all, delete-orphan")
+    order_items: Mapped[list["OrderItem"]] = relationship("OrderItem", back_populates="product")
 
 
     __table_args__ = (
