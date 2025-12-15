@@ -1,32 +1,62 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pathlib import Path
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
 from sqlalchemy import select, update, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas import Product as ProductSchema, ProductCreate, ProductList
-from app.models.products import Product as ProductModel
-from app.models.categories import Category as CategoryModel
-from app.models.users import User as UserModel
+from app.models import Product as ProductModel, Category as CategoryModel, User as UserModel
 from app.db_depends import get_async_db
 from app.auth import get_current_seller
-
 
 router = APIRouter(
     prefix="/products",
     tags=["products"],
 )
 
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+MEDIA_ROOT = BASE_DIR / "media" / "products"
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MAX_IMAGE_SIZE = 2 * 1024 * 1024
+
+
+async def save_product_image(file: UploadFile) -> str:
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only JPG, PNG or WebP images are allowed")
+
+    content = await file.read()
+    if len(content) > MAX_IMAGE_SIZE:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Image is too large")
+
+    extension = Path(file.filename or "").suffix.lower() or ".jpg"
+    file_name = f"{uuid.uuid4()}{extension}"
+    file_path = MEDIA_ROOT / file_name
+    file_path.write_bytes(content)
+
+    return f"/media/products/{file_name}"
+
+
+def remove_product_image(url: str | None) -> None:
+    if not url:
+        return
+    relative_path = url.lstrip("/")
+    file_path = BASE_DIR / relative_path
+    if file_path.exists():
+        file_path.unlink()
+
 
 @router.get("/", response_model=ProductList)
 async def get_all_products(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    category_id: int | None = Query(None, description="ID категории для фильтрации"),
-    search: str | None = Query(None, min_length=1, description="Поиск по названию/описанию"),
-    min_price: float | None = Query(None, ge=0, description="Минимальная цена товара"),
-    max_price: float | None = Query(None, ge=0, description="Максимальная цена товара"),
-    in_stock: bool | None = Query(None, description="true — только товары в наличии, false — только без остатка"),
-    seller_id: int | None = Query(None, description="ID продавца для фильтрации"),
-    db: AsyncSession = Depends(get_async_db),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(20, ge=1, le=100),
+        category_id: int | None = Query(None, description="ID категории для фильтрации"),
+        search: str | None = Query(None, min_length=1, description="Поиск по названию/описанию"),
+        min_price: float | None = Query(None, ge=0, description="Минимальная цена товара"),
+        max_price: float | None = Query(None, ge=0, description="Максимальная цена товара"),
+        in_stock: bool | None = Query(None, description="true — только товары в наличии, false — только без остатка"),
+        seller_id: int | None = Query(None, description="ID продавца для фильтрации"),
+        db: AsyncSession = Depends(get_async_db),
 ):
     if min_price is not None and max_price is not None and min_price > max_price:
         raise HTTPException(
@@ -73,7 +103,7 @@ async def get_all_products(
         )
         result = await db.execute(products_stmt)
         rows = result.all()
-        items = [row[0] for row in rows]    # сами объекты
+        items = [row[0] for row in rows]  # сами объекты
         # при желании можно вернуть ранг в ответе
         # ranks = [row.rank for row in rows]
     else:
@@ -96,19 +126,21 @@ async def get_all_products(
 
 @router.post("/", response_model=ProductSchema, status_code=status.HTTP_201_CREATED)
 async def create_product(
-        product: ProductCreate,
+        product: ProductCreate = Depends(ProductCreate.as_form),
+        image: UploadFile | None = File(None),
         db: AsyncSession = Depends(get_async_db),
         current_user: UserModel = Depends(get_current_seller)
 ):
-
     category_result = await db.scalars(select(CategoryModel)
-                              .where(CategoryModel.id == product.category_id,
-                                     CategoryModel.is_active == True))
+                                       .where(CategoryModel.id == product.category_id,
+                                              CategoryModel.is_active == True))
     category = category_result.first()
     if not category:
-        raise HTTPException(status_code=400, detail="Category not found")
+        raise HTTPException(status_code=400, detail="Category not found or inactive")
 
-    db_product = ProductModel(**product.model_dump(), seller_id=current_user.id)
+    image_url = await save_product_image(image) if image else None
+
+    db_product = ProductModel(**product.model_dump(), seller_id=current_user.id, image_url=image_url)
     db.add(db_product)
     await db.commit()
     await db.refresh(db_product)
@@ -117,7 +149,6 @@ async def create_product(
 
 @router.get("/category/{category_id}", response_model=list[ProductSchema])
 async def get_products_by_category(category_id: int, db: AsyncSession = Depends(get_async_db)):
-
     category_result = await db.scalars(select(CategoryModel)
                                        .where(CategoryModel.id == category_id,
                                               CategoryModel.is_active == True))
@@ -135,7 +166,6 @@ async def get_products_by_category(category_id: int, db: AsyncSession = Depends(
 
 @router.get("/{product_id}", response_model=ProductSchema)
 async def get_product(product_id: int, db: AsyncSession = Depends(get_async_db)):
-
     product_result = await db.scalars(
         select(ProductModel).where(ProductModel.id == product_id,
                                    ProductModel.is_active == True)
@@ -157,20 +187,20 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_async_db))
 @router.put("/{product_id}", response_model=ProductSchema)
 async def update_product(
         product_id: int,
-        product: ProductCreate,
+        product: ProductCreate = Depends(ProductCreate.as_form),
+        image: UploadFile | None = File(None),
         db: AsyncSession = Depends(get_async_db),
         current_user: UserModel = Depends(get_current_seller)):
-
     product_result = await db.scalars(
         select(ProductModel).where(ProductModel.id == product_id,
-               ProductModel.is_active == True)
+                                   ProductModel.is_active == True)
     )
     product_data = product_result.first()
     if not product_data:
         raise HTTPException(status_code=404, detail="Product not found")
 
     if product_data.seller_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only sellers can perform this action")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only update your own products")
 
     category_result = await db.scalars(
         select(ProductModel).where(ProductModel.category_id == product.category_id,
@@ -184,8 +214,14 @@ async def update_product(
         update(ProductModel)
         .where(ProductModel.id == product_id)
         .values(**product.model_dump()))
+
+    if image:
+        remove_product_image(product_data.image_url)
+        product_data.image_url = await save_product_image(image)
+
     await db.commit()
-    return  product_data
+    await db.refresh(product_data)
+    return product_data
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_200_OK)
@@ -193,7 +229,6 @@ async def delete_product(
         product_id: int,
         db: AsyncSession = Depends(get_async_db),
         current_user: UserModel = Depends(get_current_seller)):
-
     product_result = await db.scalars(
         select(ProductModel).where(ProductModel.id == product_id,
                                    ProductModel.is_active == True)
@@ -205,7 +240,11 @@ async def delete_product(
     if product.seller_id != current_user.id:
         raise HTTPException(status_code=403, detail="Only sellers can perform this action")
 
-    product.is_active = False
+    await db.execute(
+        update(ProductModel).where(ProductModel.id == product_id).values(is_active=False)
+    )
+    remove_product_image(product.image_url)
+
     await db.commit()
     await db.refresh(product)
     return product
