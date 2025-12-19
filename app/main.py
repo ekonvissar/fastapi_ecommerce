@@ -17,8 +17,8 @@ app = FastAPI(
     version='0.1.0',
 )
 
-app.add_middleware(HTTPSRedirectMiddleware)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
+app.add_middleware(HTTPSRedirectMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://localhost:8000", "null"],
