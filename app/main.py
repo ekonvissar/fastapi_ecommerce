@@ -1,9 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
+from loguru import logger
+from app.logging import log_middleware
+
 
 from app.middleware import (log_request_middleware,
                             error_handler,
@@ -16,6 +19,13 @@ app = FastAPI(
     title='FastAPI интеренет-магазин',
     version='0.1.0',
 )
+
+logger.add("info.log", format="Log: [{extra[log_id]}:{time} - {level} - {message}]", level="INFO", enqueue = True)
+
+@app.middleware("http")
+async def log_middleware_wrapper(request: Request, call_next):
+    return await log_middleware(request, call_next)
+
 
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
 app.add_middleware(HTTPSRedirectMiddleware)
