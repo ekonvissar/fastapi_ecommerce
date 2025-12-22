@@ -1,3 +1,4 @@
+# from celery.schedules import crontab
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,6 +7,9 @@ from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from loguru import logger
 from app.logging import log_middleware
+from celery import Celery
+
+from app.task import call_background_task
 
 
 from app.middleware import (log_request_middleware,
@@ -18,6 +22,14 @@ from app.router_loader import include_routers
 app = FastAPI(
     title='FastAPI интеренет-магазин',
     version='0.1.0',
+)
+
+celery = Celery(
+    __name__,
+    broker='redis://127.0.0.1:6379/0',
+    backend='redis://127.0.0.1:6379/0',
+    broker_connection_retry_on_startup=True,
+    include=['app.task']
 )
 
 logger.add("info.log", format="Log: [{extra[log_id]}:{time} - {level} - {message}]", level="INFO", enqueue = True)
@@ -57,6 +69,22 @@ include_routers(app)
 
 app.mount("/media", StaticFiles(directory="media"), name="media")
 
-@app.get('/')
-async def root():
-    return {"message": "Добро пожаловать в API интернет-магазина!"}
+
+
+
+# @app.get('/')
+# async def root():
+#     return {"message": "Добро пожаловать в API интернет-магазина!"}
+
+@app.get("/")
+async def hello_world(message: str):
+    call_background_task.apply_async(args=[message], expires=3600)
+    return {"message": message}
+
+celery.conf.beat_schedule = {
+    'run-me-background-task': {
+        'task': 'app.task.call_background_task',
+        'schedule': 60.0,
+        'args': ('Test text message',)
+    }
+}
