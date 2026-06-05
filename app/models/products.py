@@ -1,17 +1,24 @@
-
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import (Boolean, ForeignKey, Integer, Numeric,
-                        String, text, Float, Computed, Index,
-                        )
+from sqlalchemy import (
+    Boolean,
+    Computed,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    text,
+)
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
 if TYPE_CHECKING:
-    from app.models import Category, Review, User, CartItem, OrderItem
+    from app.models import CartItem, Category, OrderItem, Review, User
 
 
 class Product(Base):
@@ -25,7 +32,9 @@ class Product(Base):
     stock: Mapped[int] = mapped_column(Integer, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     rating: Mapped[float] = mapped_column(Float, default=0.0, server_default=text("0"))
-    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
+    category_id: Mapped[int] = mapped_column(
+        ForeignKey("categories.id"), nullable=False
+    )
     seller_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
 
     tsv: Mapped[TSVECTOR] = mapped_column(
@@ -38,17 +47,17 @@ class Product(Base):
             """,
             persisted=True,
         ),
-        nullable=False
+        nullable=False,
     )
-
 
     category: Mapped["Category"] = relationship("Category", back_populates="products")
     seller: Mapped["User"] = relationship("User", back_populates="products")
     review: Mapped["Review"] = relationship("Review", back_populates="product")
-    cart_items: Mapped[list["CartItem"]] = relationship("CartItem", back_populates="product", cascade="all, delete-orphan")
-    order_items: Mapped[list["OrderItem"]] = relationship("OrderItem", back_populates="product")
-
-
-    __table_args__ = (
-        Index("ix_products_tsv_gin", "tsv", postgresql_using="gin"),
+    cart_items: Mapped[list["CartItem"]] = relationship(
+        "CartItem", back_populates="product", cascade="all, delete-orphan"
     )
+    order_items: Mapped[list["OrderItem"]] = relationship(
+        "OrderItem", back_populates="product"
+    )
+
+    __table_args__ = (Index("ix_products_tsv_gin", "tsv", postgresql_using="gin"),)

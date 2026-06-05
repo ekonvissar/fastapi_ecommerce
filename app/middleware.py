@@ -1,5 +1,6 @@
 from time import time
 from uuid import uuid4
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
@@ -16,11 +17,14 @@ async def error_handler(request: Request, exc: Exception):
     print(f"Unhandled error: {exc}")
     return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
+
 async def security_headers_middleware(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Strict-Transport-Security"] = (
+        "max-age=31536000; includeSubDomains"
+    )
     response.headers["X-XSS-Protection"] = "1; mode=block"
     return response
 

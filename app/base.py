@@ -1,2 +1,2 @@
-from app.database import Base
-from app import models
+from app import models  # noqa: F401
+from app.database import Base  # noqa: F401

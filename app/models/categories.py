@@ -50,7 +50,9 @@ class Category(Base):
 #     id: Mapped[int] = mapped_column(primary_key=True)
 #     order_number: Mapped[str] = mapped_column(String(20),unique=True, nullable=False)
 #     total_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-#     customer_id: Mapped[int] = mapped_column(ForeignKey('customers.id'), nullable=False)
+#     customer_id: Mapped[int] = mapped_column(
+#         ForeignKey('customers.id'), nullable=False
+#     )
 #     category: Mapped['Customer'] = relationship(
 #         'Customer',
 #         back_populates='orders',

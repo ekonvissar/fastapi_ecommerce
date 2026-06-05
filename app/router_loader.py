@@ -1,6 +1,7 @@
+import importlib
 from pathlib import Path
 from pkgutil import iter_modules
-import importlib
+
 
 def include_routers(app):
     package_dir = Path(__file__).resolve().parent / "routers"
