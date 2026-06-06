@@ -1,8 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
+from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,12 +15,15 @@ from app.auth import (
     verify_password,
 )
 from app.config import ALGORITHM, SECRET_KEY
-from app.db_depends import get_async_db
+from app.db_depends import get_async_db, get_redis
 from app.models.users import User as UserModel
 from app.schemas import User as UsersSchema
 from app.schemas import UserCreate
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+COOKIE_MAX_AGE = REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
 
 
 @router.post("/", response_model=UsersSchema, status_code=status.HTTP_201_CREATED)
@@ -43,6 +47,7 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_async_db)
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_async_db),
+    redis: Redis = Depends(get_redis),
     response: Response = None,
 ):
     user = await db.scalar(
@@ -65,25 +70,43 @@ async def login(
         data={"sub": user.email, "role": user.role, "id": user.id}
     )
 
+    refresh_payload = jwt.decode(
+        refresh_token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False}
+    )
+    jti = refresh_payload["jti"]
+
+    # Сохраняем jti в Redis — whitelist
+    # Ключ: refresh:{user_id}:{jti}, значение: user_id, TTL = срок жизни токена
+    await redis.set(
+        f"refresh:{user.id}:{jti}",
+        str(user.id),
+        ex=COOKIE_MAX_AGE,
+    )
+
+    # Все атрибуты куки одинаковые везде — иначе браузер считает их разными куками
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=REFRESH_TOKEN_EXPIRE_DAYS,
-        path="/users/refresh",
+        httponly=True,  # недоступна из JS — защита от XSS
+        secure=True,  # только HTTPS
+        samesite="lax",  # защита от CSRF, но позволяет переходы по ссылкам
+        max_age=COOKIE_MAX_AGE,
+        path="/users",  # кука отправляется только на /users/*
     )
 
     return {
         "access_token": access_token,
-        "refresh_token": refresh_token,
         "token_type": "bearer",
     }
 
 
 @router.post("/refresh")
-async def refresh(request: Request, response: Response):
+async def refresh(
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_async_db),
+    redis: Redis = Depends(get_redis),
+):
     refresh_cookie = request.cookies.get("refresh_token")
     if not refresh_cookie:
         raise HTTPException(
@@ -101,39 +124,117 @@ async def refresh(request: Request, response: Response):
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
         )
 
-    if payload.get("refresh_token") != "refresh":
+    # Исправленная проверка типа токена (был баг — "refresh_token" вместо "token_type")
+    if payload.get("token_type") != "refresh":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Wrong token type"
         )
 
+    jti = payload.get("jti")
+    user_id = payload.get("id")
+    key = f"refresh:{user_id}:{jti}"
+
+    # Атомарно удаляем jti из Redis
+    # Если токен уже использован или не существует — возможна кража
+    deleted = await redis.delete(key)
+    if not deleted:
+        # Токен не найден в whitelist — либо уже использован, либо украден
+        # Удаляем все сессии пользователя на всякий случай
+        async for k in redis.scan_iter(f"refresh:{user_id}:*"):
+            await redis.delete(k)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token reuse detected"
+        )
+
+    # Проверяем что пользователь существует и активен в БД
+    user = await db.scalar(
+        select(UserModel).where(
+            UserModel.id == user_id,
+            UserModel.is_active,
+        )
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+        )
+
+    # Выпускаем новый access-токен
     new_access_token = create_access_token(
-        {"sub": payload["sub"], "role": payload["role"], "id": payload["id"]}
+        {"sub": user.email, "role": user.role, "id": user.id}
     )
 
-    exp = datetime.fromtimestamp(payload["exp"])
-    now = datetime.now(timezone.utc)
-    if exp - now < timedelta(days=1):
-        new_refresh_token = create_refresh_token(
-            {"sub": payload["sub"], "role": payload["role"], "id": payload["id"]}
-        )
+    # Ротация refresh-токена — всегда выпускаем новый
+    new_refresh_token = create_refresh_token(
+        {"sub": user.email, "role": user.role, "id": user.id}
+    )
 
-        response.set_cookie(
-            key="refresh_token",
-            value=new_refresh_token,
-            httponly=True,
-            secure=True,
-            samesite="strict",
-            max_age=REFRESH_TOKEN_EXPIRE_DAYS,
-            path="/",
-        )
+    # Достаём jti нового refresh-токена и сохраняем в Redis
+    new_payload = jwt.decode(
+        new_refresh_token,
+        SECRET_KEY,
+        algorithms=[ALGORITHM],
+        options={"verify_exp": False},
+    )
+    new_jti = new_payload["jti"]
+
+    # Исправлен баг с naive/aware datetime — используем fromtimestamp с tz=UTC
+    exp = datetime.fromtimestamp(new_payload["exp"], tz=timezone.utc)
+    now = datetime.now(timezone.utc)
+    ttl = int((exp - now).total_seconds())
+
+    await redis.set(
+        f"refresh:{user.id}:{new_jti}",
+        str(user.id),
+        ex=ttl,
+    )
+
+    # Те же атрибуты куки что и при логине
+    response.set_cookie(
+        key="refresh_token",
+        value=new_refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=COOKIE_MAX_AGE,
+        path="/users",
+    )
 
     return {"access_token": new_access_token, "token_type": "bearer"}
 
 
 @router.post("/logout")
-async def logout(response: Response):
+async def logout(
+    request: Request,
+    response: Response,
+    redis: Redis = Depends(get_redis),
+):
+    refresh_cookie = request.cookies.get("refresh_token")
+
+    if refresh_cookie:
+        try:
+            payload = jwt.decode(
+                refresh_cookie,
+                SECRET_KEY,
+                algorithms=[ALGORITHM],
+                options={"verify_exp": False},  # при логауте срок не важен
+            )
+            jti = payload.get("jti")
+            user_id = payload.get("id")
+
+            # Удаляем refresh-токен из whitelist
+            await redis.delete(f"refresh:{user_id}:{jti}")
+
+        except jwt.PyJWTError:
+            pass  # токен повреждён — просто удаляем куку
+
+    # Удаляем куку — те же атрибуты что при установке
     response.delete_cookie(
-        key="refresh_token", httponly=True, secure=True, samesite="strict", path="/"
+        key="refresh_token",
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        path="/users",
     )
 
     return {"detail": "Logged out"}
