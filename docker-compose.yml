@@ -4,6 +4,9 @@ services:
     container_name: fastapi_api
     env_file:
       - .env
+    volumes:
+      - ./media:/app/media
+      - ./static:/app/static
     ports:
       - "443:443"
     depends_on:

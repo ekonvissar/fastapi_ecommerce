@@ -16,6 +16,7 @@ RUN pip install --upgrade pip \
 
 
 COPY app app
+COPY static static
 COPY alembic alembic
 COPY alembic.ini .
 

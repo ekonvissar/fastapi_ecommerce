@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>WebSocket demo</title>
+  <style>
+    body { font-family: sans-serif; max-width: 720px; margin: 2rem auto; }
+    input, button { margin: 0.25rem 0; width: 100%; padding: 0.5rem; }
+    #log { background: #111; color: #0f0; padding: 1rem; min-height: 200px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>WebSocket demo</h1>
+  <p>1. Получите access_token через POST /users/token</p>
+  <p>2. Подключитесь к каналу заказов или к echo</p>
+
+  <label>Access token</label>
+  <input id="token" placeholder="eyJ..." />
+
+  <button id="connectOrders">Подключиться к /ws/orders</button>
+  <button id="connectEcho">Подключиться к /ws/echo</button>
+  <button id="ping">Отправить ping</button>
+  <button id="disconnect">Отключиться</button>
+
+  <h2>Лог</h2>
+  <div id="log"></div>
+
+  <script>
+    let socket = null;
+    const logEl = document.getElementById("log");
+
+    function log(message) {
+      logEl.textContent += message + "\n";
+    }
+
+    function wsUrl(path) {
+      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      return `${protocol}//${location.host}${path}`;
+    }
+
+    document.getElementById("connectOrders").onclick = () => {
+      const token = document.getElementById("token").value.trim();
+      if (!token) {
+        log("Нужен access_token");
+        return;
+      }
+      socket = new WebSocket(wsUrl(`/ws/orders?token=${encodeURIComponent(token)}`));
+      bindSocket();
+    };
+
+    document.getElementById("connectEcho").onclick = () => {
+      socket = new WebSocket(wsUrl("/ws/echo"));
+      bindSocket();
+    };
+
+    document.getElementById("ping").onclick = () => {
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send("ping");
+      }
+    };
+
+    document.getElementById("disconnect").onclick = () => {
+      if (socket) socket.close();
+    };
+
+    function bindSocket() {
+      socket.onopen = () => log("connected");
+      socket.onmessage = (event) => log("← " + event.data);
+      socket.onclose = () => log("disconnected");
+      socket.onerror = () => log("error");
+    }
+  </script>
+</body>
+</html>

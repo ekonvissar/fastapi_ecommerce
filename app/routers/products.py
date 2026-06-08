@@ -101,7 +101,6 @@ async def get_all_products(
     if seller_id is not None:
         filters.append(ProductModel.seller_id == seller_id)
 
-    # Базовый запрос total
     total_stmt = select(func.count()).select_from(ProductModel).where(*filters)
 
     rank_col = None
@@ -111,12 +110,10 @@ async def get_all_products(
             ts_query = func.websearch_to_tsquery("english", search_value)
             filters.append(ProductModel.tsv.op("@@")(ts_query))
             rank_col = func.ts_rank_cd(ProductModel.tsv, ts_query).label("rank")
-            # total с учётом полнотекстового фильтра
             total_stmt = select(func.count()).select_from(ProductModel).where(*filters)
 
     total = await db.scalar(total_stmt) or 0
 
-    # Основной запрос (если есть поиск — добавим ранг в выборку и сортировку)
     if rank_col is not None:
         products_stmt = (
             select(ProductModel, rank_col)
@@ -127,9 +124,7 @@ async def get_all_products(
         )
         result = await db.execute(products_stmt)
         rows = result.all()
-        items = [row[0] for row in rows]  # сами объекты
-        # при желании можно вернуть ранг в ответе
-        # ranks = [row.rank for row in rows]
+        items = [row[0] for row in rows]
     else:
         products_stmt = (
             select(ProductModel)

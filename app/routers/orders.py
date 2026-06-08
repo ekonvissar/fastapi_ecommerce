@@ -13,6 +13,7 @@ from app.models.orders import OrderItem as OrderItemModel
 from app.models.users import User as UserModel
 from app.schemas import Order as OrderSchema
 from app.schemas import OrderList
+from app.ws.manager import ws_manager
 
 router = APIRouter(
     prefix="/orders",
@@ -97,6 +98,16 @@ async def checkout_order(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to load order",
         )
+
+    await ws_manager.notify_user(
+        current_user.id,
+        {
+            "type": "order_created",
+            "order_id": created_order.id,
+            "status": created_order.status,
+            "total_amount": str(created_order.total_amount),
+        },
+    )
     return created_order
 
 

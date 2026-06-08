@@ -28,8 +28,7 @@ class Category(BaseModel):
     ]
     is_active: Annotated[bool, Field(description="Активность категории")]
 
-
-model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProductCreate(BaseModel):
@@ -162,7 +161,7 @@ class ProductList(BaseModel):
         int, Field(ge=1, description="Количество элементов на странице")
     ]
 
-    model_config = ConfigDict(from_attributes=True)  # Для чтения из ORM-объектов
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CartItemBase(BaseModel):
@@ -176,7 +175,6 @@ class CartItemCreate(CartItemBase):
 
 class CartItemUpdate(BaseModel):
     quantity: Annotated[int, Field(..., ge=1, description="Новое количество товара")]
-    # Только это поле в теле запроса
 
 
 class CartItem(BaseModel):
@@ -185,9 +183,6 @@ class CartItem(BaseModel):
     product: Annotated[Product, Field(..., description="Информация о товаре")]
 
     model_config = ConfigDict(from_attributes=True)
-
-
-# выходная модель
 
 
 class Cart(BaseModel):
