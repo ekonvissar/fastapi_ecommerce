@@ -1,0 +1,77 @@
+name: fastapi-ecommerce-prod
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: app/Dockerfile.prod
+    container_name: fastapi_web
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+    volumes:
+      - ./media:/app/media
+      - ./static:/app/static
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+      gunicorn app.main:app
+      --workers 4
+      --worker-class uvicorn.workers.UvicornWorker
+      --bind 0.0.0.0:8000
+      --forwarded-allow-ips='*'
+      --access-logfile -
+      --error-logfile -"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: fastapi_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./app/cert:/etc/nginx/certs:ro
+    depends_on:
+      - web
+    restart: unless-stopped
+
+  db:
+    image: postgres:16
+    container_name: fastapi_db_prod
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: fastapi_redis_prod
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:

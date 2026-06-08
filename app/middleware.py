@@ -6,6 +6,7 @@ from loguru import logger
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
+from app.config import APP_ENV
 from app.logging import request_logging_middleware
 
 
@@ -31,7 +32,8 @@ async def security_headers_middleware(request: Request, call_next):
 
 def setup_middleware(app: FastAPI) -> None:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
-    app.add_middleware(HTTPSRedirectMiddleware)
+    if APP_ENV != "production":
+        app.add_middleware(HTTPSRedirectMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["https://localhost:8000", "null"],
