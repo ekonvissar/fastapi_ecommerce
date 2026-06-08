@@ -1,20 +1,20 @@
-from time import time
-from uuid import uuid4
-
-from fastapi import Request
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from loguru import logger
+from starlette.middleware.gzip import GZipMiddleware
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
-
-async def log_request_middleware(request: Request, call_next):
-    start_time = time()
-    response = await call_next(request)
-    duration = time() - start_time
-    print(f"{request.method} {request.url.path} completed in {duration:.2f} seconds")
-    return response
+from app.logging import request_logging_middleware
 
 
 async def error_handler(request: Request, exc: Exception):
-    print(f"Unhandled error: {exc}")
+    request_id = getattr(request.state, "request_id", "-")
+    with logger.contextualize(request_id=request_id):
+        logger.exception(
+            f"Unhandled error on {request.method} {request.url.path}: {exc}"
+        )
     return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
 
@@ -29,9 +29,19 @@ async def security_headers_middleware(request: Request, call_next):
     return response
 
 
-async def request_id_middleware(request: Request, call_next):
-    request_id = str(uuid4())
-    request.state.request_id = request_id
-    response = await call_next(request)
-    response.headers["X-Request-Id"] = request_id
-    return response
+def setup_middleware(app: FastAPI) -> None:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
+    app.add_middleware(HTTPSRedirectMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["https://localhost:8000", "null"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+    app.middleware("http")(security_headers_middleware)
+    app.middleware("http")(request_logging_middleware)
+
+    app.exception_handler(Exception)(error_handler)
