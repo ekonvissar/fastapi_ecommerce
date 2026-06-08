@@ -9,8 +9,15 @@ venv/
 # Certificates
 app/cert/
 
+# Uploaded product images (keep folder structure)
+media/products/*
+!media/products/.gitkeep
+
 # IDE
 .idea/
+
+# Logs
+info.log
 
 # Python
 __pycache__/
