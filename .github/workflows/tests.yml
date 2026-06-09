@@ -2,18 +2,18 @@ name: Tests
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, additional-features]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, additional-features]
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
     env:
-      DATABASE_URL: sqlite+aiosqlite:///:memory:
-      SECRET_KEY: test-secret-key-for-ci-only
-      REDIS_URL: redis://localhost:6379/0
+      DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+      SECRET_KEY: "test-secret-key-for-ci-only"
+      REDIS_URL: "redis://localhost:6379/0"
       APP_ENV: development
 
     steps:
