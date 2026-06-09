@@ -91,7 +91,7 @@ async def delete_category(category_id: int, db: AsyncSession = Depends(get_async
     result = await db.scalars(stmt)
     category = result.first()
     if not category:
-        return HTTPException(status_code=404, detail="Category not found")
+        raise HTTPException(status_code=404, detail="Category not found")
 
     await db.execute(
         update(CategoryModel)

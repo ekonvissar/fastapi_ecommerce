@@ -1,0 +1,10 @@
+[run]
+source = app
+omit =
+    app/celery_app.py
+    app/task.py
+    app/routers/health.py
+    app/base.py
+
+[report]
+show_missing = True
