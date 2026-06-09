@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db_depends import get_async_db
 from app.models.categories import Category as CategoryModel
+from app.routers.products import products_router
 from app.schemas import Category as CategorySchema
 from app.schemas import CategoryCreate
 
@@ -100,3 +101,6 @@ async def delete_category(category_id: int, db: AsyncSession = Depends(get_async
     await db.commit()
 
     return category
+
+
+router.include_router(products_router)

@@ -24,6 +24,7 @@ from app.models import (
 from app.models import (
     User as UserModel,
 )
+from app.routers.reviews import review_router
 from app.schemas import Product as ProductSchema
 from app.schemas import ProductCreate, ProductList
 
@@ -31,6 +32,8 @@ router = APIRouter(
     prefix="/products",
     tags=["products"],
 )
+
+products_router = APIRouter(prefix="/{category_id}/products")
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 MEDIA_ROOT = BASE_DIR / "media" / "products"
@@ -170,7 +173,7 @@ async def create_product(
     return db_product
 
 
-@router.get("/category/{category_id}", response_model=list[ProductSchema])
+@products_router.get("/", response_model=list[ProductSchema])
 async def get_products_by_category(
     category_id: int, db: AsyncSession = Depends(get_async_db)
 ):
@@ -202,7 +205,7 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_async_db))
     )
     product = product_result.first()
     if not product:
-        raise HTTPException(status_code=404, detail="Product not fount")
+        raise HTTPException(status_code=404, detail="Product not found")
 
     category_result = await db.scalars(
         select(CategoryModel).where(CategoryModel.id == product.category_id)
@@ -238,9 +241,9 @@ async def update_product(
         )
 
     category_result = await db.scalars(
-        select(ProductModel).where(
-            ProductModel.category_id == product.category_id,
-            ProductModel.is_active,
+        select(CategoryModel).where(
+            CategoryModel.id == product.category_id,
+            CategoryModel.is_active,
         )
     )
     category_data = category_result.first()
@@ -292,3 +295,6 @@ async def delete_product(
     await db.commit()
     await db.refresh(product)
     return product
+
+
+router.include_router(review_router)

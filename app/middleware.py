@@ -36,7 +36,7 @@ def setup_middleware(app: FastAPI) -> None:
         app.add_middleware(HTTPSRedirectMiddleware)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["https://localhost:8000", "null"],
+        allow_origins=["https://localhost:8000", "https://127.0.0.1", "null"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

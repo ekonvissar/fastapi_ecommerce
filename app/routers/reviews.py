@@ -15,6 +15,8 @@ router = APIRouter(
     tags=["reviews"],
 )
 
+review_router = APIRouter(prefix="/{product_id}/reviews")
+
 
 @router.get("/", response_model=list[ReviewSchema])
 async def get_reviews(db: AsyncSession = Depends(get_async_db)):
@@ -24,7 +26,7 @@ async def get_reviews(db: AsyncSession = Depends(get_async_db)):
     return reviews
 
 
-@router.get("/product/{product_id}", response_model=list[ReviewSchema])
+@review_router.get("/", response_model=list[ReviewSchema])
 async def get_reviews_by_product(
     product_id: int, db: AsyncSession = Depends(get_async_db)
 ):
@@ -108,5 +110,11 @@ async def update_product_rating(db: AsyncSession, product_id: int):
     )
     avg_rating = result.scalar() or 0.0
     product = await db.get(ProductModel, product_id)
+
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+        )
+
     product.rating = avg_rating
     await db.commit()

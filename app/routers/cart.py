@@ -26,6 +26,8 @@ router = APIRouter(
     tags=["cart"],
 )
 
+cart_router = APIRouter(prefix="/items")
+
 
 async def _ensure_product_available(db: AsyncSession, product_id: int) -> None:
     result = await db.scalars(
@@ -84,8 +86,8 @@ async def get_cart(
     )
 
 
-@router.post(
-    "/items", response_model=CartItemSchema, status_code=status.HTTP_201_CREATED
+@cart_router.post(
+    "/", response_model=CartItemSchema, status_code=status.HTTP_201_CREATED
 )
 async def add_item_to_cart(
     payload: CartItemCreate,
@@ -110,7 +112,7 @@ async def add_item_to_cart(
     return updated_item
 
 
-@router.put("/items/{product_id}", response_model=CartItemSchema)
+@cart_router.put("/{product_id}", response_model=CartItemSchema)
 async def update_cart_item(
     product_id: int,
     payload: CartItemUpdate,
@@ -129,7 +131,7 @@ async def update_cart_item(
     return updated_item
 
 
-@router.delete("/items/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+@cart_router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_cart_item(
     product_id: int,
     db: AsyncSession = Depends(get_async_db),
@@ -156,3 +158,6 @@ async def clear_cart(
     )
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+router.include_router(cart_router)
