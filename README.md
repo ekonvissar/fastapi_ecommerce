@@ -2,7 +2,7 @@
 
 ![Tests](https://github.com/ekonvissar/fastapi_ecommerce/actions/workflows/tests.yml/badge.svg)
 
-Backend интернет-магазина на FastAPI. Учебный проект, но с нормальными штуками: async PostgreSQL, Redis, JWT, роли, корзина, заказы, WebSocket при checkout.
+Backend интернет-магазина на FastAPI. Учебный проект: async PostgreSQL, Redis, JWT, роли, корзина, заказы, WebSocket при checkout.
 
 **Стек:** FastAPI · SQLAlchemy 2 (async) · PostgreSQL · Redis · Alembic · pytest
 
