@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
+from app.config import SettingsDep
 from app.ws.auth import get_user_id_from_token
 from app.ws.manager import ws_manager
 
@@ -28,6 +29,7 @@ async def echo_websocket(websocket: WebSocket):
 @router.websocket("/ws/orders")
 async def orders_websocket(
     websocket: WebSocket,
+    settings: SettingsDep,
     token: str = Query(..., description="JWT access token"),
 ):
     """
@@ -35,7 +37,7 @@ async def orders_websocket(
     Сюда приходят события о заказах (например, после checkout).
     """
     try:
-        user_id = get_user_id_from_token(token)
+        user_id = get_user_id_from_token(token, settings)
     except Exception:
         await websocket.close(code=1008, reason="Invalid or expired token")
         return

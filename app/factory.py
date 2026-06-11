@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.lifespan import lifespan
 from app.logging import setup_logging
 from app.middleware import setup_middleware
 from app.router_loader import include_routers
@@ -17,6 +18,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="FastAPI интеренет-магазин",
         version="0.1.0",
+        lifespan=lifespan,
     )
 
     setup_middleware(app)

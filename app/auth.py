@@ -8,7 +8,7 @@ from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import ALGORITHM, SECRET_KEY
+from app.config import Settings, SettingsDep
 from app.db_depends import get_async_db
 from app.models.users import User as UserModel
 
@@ -27,22 +27,24 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict):
+def create_access_token(data: dict, settings: Settings) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "token_type": "access", "jti": str(uuid4())})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.algorithm)
 
 
-def create_refresh_token(data: dict):
+def create_refresh_token(data: dict, settings: Settings) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "token_type": "refresh", "jti": str(uuid4())})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.algorithm)
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_async_db)
+    settings: SettingsDep,
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_async_db),
 ):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -50,7 +52,9 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token, settings.jwt_secret, algorithms=[settings.algorithm]
+        )
         email: str = payload.get("sub")
         token_type: str = payload.get("token_type")
 
