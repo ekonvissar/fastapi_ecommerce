@@ -1,16 +1,18 @@
 import jwt
 from fastapi import HTTPException, status
 
-from app.config import ALGORITHM, SECRET_KEY
+from app.config import Settings
 
 
-def get_user_id_from_token(token: str) -> int:
+def get_user_id_from_token(token: str, settings: Settings) -> int:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token, settings.jwt_secret, algorithms=[settings.algorithm]
+        )
         user_id = payload.get("id")
         token_type = payload.get("token_type")
 

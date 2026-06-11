@@ -14,7 +14,7 @@ from app.auth import (
     hash_password,
     verify_password,
 )
-from app.config import ALGORITHM, SECRET_KEY
+from app.config import SettingsDep
 from app.db_depends import get_async_db, get_redis
 from app.models.users import User as UserModel
 from app.schemas import User as UsersSchema
@@ -45,10 +45,11 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_async_db)
 
 @router.post("/token")
 async def login(
+    response: Response,
+    settings: SettingsDep,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_async_db),
     redis: Redis = Depends(get_redis),
-    response: Response = None,
 ):
     user = await db.scalar(
         select(UserModel).where(
@@ -64,14 +65,19 @@ async def login(
         )
 
     access_token = create_access_token(
-        data={"sub": user.email, "role": user.role, "id": user.id}
+        data={"sub": user.email, "role": user.role, "id": user.id},
+        settings=settings,
     )
     refresh_token = create_refresh_token(
-        data={"sub": user.email, "role": user.role, "id": user.id}
+        data={"sub": user.email, "role": user.role, "id": user.id},
+        settings=settings,
     )
 
     refresh_payload = jwt.decode(
-        refresh_token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False}
+        refresh_token,
+        settings.jwt_secret,
+        algorithms=[settings.algorithm],
+        options={"verify_exp": False},
     )
     jti = refresh_payload["jti"]
 
@@ -104,6 +110,7 @@ async def login(
 async def refresh(
     request: Request,
     response: Response,
+    settings: SettingsDep,
     db: AsyncSession = Depends(get_async_db),
     redis: Redis = Depends(get_redis),
 ):
@@ -114,7 +121,9 @@ async def refresh(
         )
 
     try:
-        payload = jwt.decode(refresh_cookie, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            refresh_cookie, settings.jwt_secret, algorithms=[settings.algorithm]
+        )
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token is expired"
@@ -161,19 +170,21 @@ async def refresh(
 
     # Выпускаем новый access-токен
     new_access_token = create_access_token(
-        {"sub": user.email, "role": user.role, "id": user.id}
+        {"sub": user.email, "role": user.role, "id": user.id},
+        settings=settings,
     )
 
     # Ротация refresh-токена — всегда выпускаем новый
     new_refresh_token = create_refresh_token(
-        {"sub": user.email, "role": user.role, "id": user.id}
+        {"sub": user.email, "role": user.role, "id": user.id},
+        settings=settings,
     )
 
     # Достаём jti нового refresh-токена и сохраняем в Redis
     new_payload = jwt.decode(
         new_refresh_token,
-        SECRET_KEY,
-        algorithms=[ALGORITHM],
+        settings.jwt_secret,
+        algorithms=[settings.algorithm],
         options={"verify_exp": False},
     )
     new_jti = new_payload["jti"]
@@ -207,6 +218,7 @@ async def refresh(
 async def logout(
     request: Request,
     response: Response,
+    settings: SettingsDep,
     redis: Redis = Depends(get_redis),
 ):
     refresh_cookie = request.cookies.get("refresh_token")
@@ -215,8 +227,8 @@ async def logout(
         try:
             payload = jwt.decode(
                 refresh_cookie,
-                SECRET_KEY,
-                algorithms=[ALGORITHM],
+                settings.jwt_secret,
+                algorithms=[settings.algorithm],
                 options={"verify_exp": False},  # при логауте срок не важен
             )
             jti = payload.get("jti")

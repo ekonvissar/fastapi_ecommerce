@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.auth import create_access_token
+from app.config import get_settings
 from app.db_depends import get_async_db, get_redis
 from app.main import app
 from app.models.cart_items import CartItem
@@ -76,7 +77,9 @@ def register_user(client, email="buyer@test.com", password="password123", role="
 
 
 def auth_headers(email: str, user_id: int, role: str = "buyer") -> dict:
-    token = create_access_token({"sub": email, "role": role, "id": user_id})
+    token = create_access_token(
+        {"sub": email, "role": role, "id": user_id}, get_settings()
+    )
     return {"Authorization": f"Bearer {token}"}
 
 
