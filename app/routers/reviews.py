@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.auth import get_current_admin, get_current_buyer
 from app.db_depends import get_async_db
@@ -18,12 +19,31 @@ router = APIRouter(
 review_router = APIRouter(prefix="/{product_id}/reviews")
 
 
+async def _get_review_with_relations(
+    db: AsyncSession, review_id: int
+) -> ReviewModel | None:
+    result = await db.scalars(
+        select(ReviewModel)
+        .options(
+            selectinload(ReviewModel.user),
+            selectinload(ReviewModel.product),
+        )
+        .where(ReviewModel.id == review_id)
+    )
+    return result.first()
+
+
 @router.get("/", response_model=list[ReviewSchema])
 async def get_reviews(db: AsyncSession = Depends(get_async_db)):
-    reviews = await db.scalars(select(ReviewModel).where(ReviewModel.is_active))
-    reviews = reviews.all()
-
-    return reviews
+    reviews = await db.scalars(
+        select(ReviewModel)
+        .options(
+            selectinload(ReviewModel.user),
+            selectinload(ReviewModel.product),
+        )
+        .where(ReviewModel.is_active)
+    )
+    return reviews.all()
 
 
 @review_router.get("/", response_model=list[ReviewSchema])
@@ -42,13 +62,14 @@ async def get_reviews_by_product(
         )
 
     reviews_result = await db.scalars(
-        select(ReviewModel).where(
-            ReviewModel.product_id == product_id, ReviewModel.is_active
+        select(ReviewModel)
+        .options(
+            selectinload(ReviewModel.user),
+            selectinload(ReviewModel.product),
         )
+        .where(ReviewModel.product_id == product_id, ReviewModel.is_active)
     )
-    reviews = reviews_result.all()
-
-    return reviews
+    return reviews_result.all()
 
 
 @router.post("/", response_model=ReviewSchema, status_code=status.HTTP_201_CREATED)
@@ -75,7 +96,13 @@ async def create_review(
 
     await update_product_rating(db, product.id)
 
-    return db_review
+    review = await _get_review_with_relations(db, db_review.id)
+    if not review:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load review",
+        )
+    return review
 
 
 @router.delete("/{review_id}", status_code=status.HTTP_200_OK)

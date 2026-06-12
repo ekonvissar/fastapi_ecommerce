@@ -10,6 +10,18 @@ def test_get_categories_empty(client):
     assert response.json() == []
 
 
+def test_category_response_includes_parent(client):
+    parent_response = create_category(client, name="Electronics")
+    parent_id = parent_response.json()["id"]
+
+    child_response = create_category(client, name="Phones", parent_id=parent_id)
+
+    assert child_response.status_code == 201
+    child = child_response.json()
+    assert child["parent_id"] == parent_id
+    assert child["parent"] == {"id": parent_id, "name": "Electronics"}
+
+
 def test_create_and_get_categories(client):
     create_response = client.post(
         "/categories/",

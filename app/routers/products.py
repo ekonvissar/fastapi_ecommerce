@@ -12,6 +12,7 @@ from fastapi import (
 )
 from sqlalchemy import desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.auth import get_current_seller
 from app.db_depends import get_async_db
@@ -58,6 +59,17 @@ async def save_product_image(file: UploadFile) -> str:
     file_path.write_bytes(content)
 
     return f"/media/products/{file_name}"
+
+
+async def _get_product_with_category(
+    db: AsyncSession, product_id: int
+) -> ProductModel | None:
+    result = await db.scalars(
+        select(ProductModel)
+        .options(selectinload(ProductModel.category))
+        .where(ProductModel.id == product_id)
+    )
+    return result.first()
 
 
 def remove_product_image(url: str | None) -> None:
@@ -120,6 +132,7 @@ async def get_all_products(
     if rank_col is not None:
         products_stmt = (
             select(ProductModel, rank_col)
+            .options(selectinload(ProductModel.category))
             .where(*filters)
             .order_by(desc(rank_col), ProductModel.id)
             .offset((page - 1) * page_size)
@@ -131,6 +144,7 @@ async def get_all_products(
     else:
         products_stmt = (
             select(ProductModel)
+            .options(selectinload(ProductModel.category))
             .where(*filters)
             .order_by(ProductModel.id)
             .offset((page - 1) * page_size)
@@ -169,8 +183,13 @@ async def create_product(
     )
     db.add(db_product)
     await db.commit()
-    await db.refresh(db_product)
-    return db_product
+    product = await _get_product_with_category(db, db_product.id)
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load product",
+        )
+    return product
 
 
 @products_router.get("/", response_model=list[ProductSchema])
@@ -187,31 +206,20 @@ async def get_products_by_category(
         raise HTTPException(status_code=404, detail="Category not found")
 
     product_result = await db.scalars(
-        select(ProductModel).where(
-            ProductModel.category_id == category_id, ProductModel.is_active
-        )
+        select(ProductModel)
+        .options(selectinload(ProductModel.category))
+        .where(ProductModel.category_id == category_id, ProductModel.is_active)
     )
-    product = product_result.all()
-
-    return product
+    return product_result.all()
 
 
 @router.get("/{product_id}", response_model=ProductSchema)
 async def get_product(product_id: int, db: AsyncSession = Depends(get_async_db)):
-    product_result = await db.scalars(
-        select(ProductModel).where(
-            ProductModel.id == product_id, ProductModel.is_active
-        )
-    )
-    product = product_result.first()
-    if not product:
+    product = await _get_product_with_category(db, product_id)
+    if not product or not product.is_active:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    category_result = await db.scalars(
-        select(CategoryModel).where(CategoryModel.id == product.category_id)
-    )
-    category = category_result.first()
-    if not category:
+    if not product.category or not product.category.is_active:
         raise HTTPException(status_code=400, detail="Category not found")
 
     return product
@@ -261,8 +269,10 @@ async def update_product(
         product_data.image_url = await save_product_image(image)
 
     await db.commit()
-    await db.refresh(product_data)
-    return product_data
+    product = await _get_product_with_category(db, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_200_OK)

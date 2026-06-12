@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db_depends import get_async_db
 from app.models.categories import Category as CategoryModel
@@ -14,9 +15,24 @@ router = APIRouter(
 )
 
 
+async def _get_category_with_parent(
+    db: AsyncSession, category_id: int
+) -> CategoryModel | None:
+    result = await db.scalars(
+        select(CategoryModel)
+        .options(selectinload(CategoryModel.parent))
+        .where(CategoryModel.id == category_id)
+    )
+    return result.first()
+
+
 @router.get("/", response_model=list[CategorySchema])
 async def get_categories(db: AsyncSession = Depends(get_async_db)):
-    stmt = select(CategoryModel).where(CategoryModel.is_active)
+    stmt = (
+        select(CategoryModel)
+        .options(selectinload(CategoryModel.parent))
+        .where(CategoryModel.is_active)
+    )
     result = await db.scalars(stmt)
 
     return result
@@ -39,7 +55,13 @@ async def create_category(
     db_category = CategoryModel(**category.model_dump())
     db.add(db_category)
     await db.commit()
-    return db_category
+    created = await _get_category_with_parent(db, db_category.id)
+    if not created:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load category",
+        )
+    return created
 
 
 @router.put("/{category_id}", response_model=CategorySchema)
@@ -79,7 +101,10 @@ async def update_category(
         .values(**update_data)
     )
     await db.commit()
-    return db_category
+    updated = await _get_category_with_parent(db, category_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return updated
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_200_OK)

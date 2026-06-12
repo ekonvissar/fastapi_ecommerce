@@ -9,9 +9,38 @@ from app.db_depends import get_async_db, get_redis
 from app.main import app
 from app.models.cart_items import CartItem
 from app.models.categories import Category
+from app.models.orders import Order, OrderItem
+from app.models.reviews import Review
 from app.models.users import User
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+PRODUCTS_TABLE_SQL = """
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(100) NOT NULL,
+    description VARCHAR(500),
+    price NUMERIC(10, 2) NOT NULL,
+    image_url VARCHAR(200),
+    stock INTEGER NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT 1,
+    rating FLOAT NOT NULL DEFAULT 0,
+    category_id INTEGER NOT NULL,
+    seller_id INTEGER NOT NULL,
+    tsv TEXT
+)
+"""
+
+
+async def _create_test_schema(conn) -> None:
+    await conn.execute(text("PRAGMA foreign_keys=OFF"))
+    await conn.run_sync(Category.__table__.create)
+    await conn.run_sync(User.__table__.create)
+    await conn.execute(text(PRODUCTS_TABLE_SQL))
+    await conn.run_sync(Order.__table__.create)
+    await conn.run_sync(OrderItem.__table__.create)
+    await conn.run_sync(Review.__table__.create)
+    await conn.run_sync(CartItem.__table__.create)
 
 
 class FakeRedis:
@@ -40,10 +69,7 @@ class FakeRedis:
 async def client():
     engine = create_async_engine(TEST_DATABASE_URL)
     async with engine.begin() as conn:
-        await conn.execute(text("PRAGMA foreign_keys=OFF"))
-        await conn.run_sync(Category.__table__.create)
-        await conn.run_sync(User.__table__.create)
-        await conn.run_sync(CartItem.__table__.create)
+        await _create_test_schema(conn)
 
     session_maker = async_sessionmaker(
         engine, class_=AsyncSession, expire_on_commit=False
@@ -95,3 +121,27 @@ def create_category(client, name="Phones", parent_id=None):
         "/categories/",
         json={"name": name, "parent_id": parent_id},
     )
+
+
+def register_seller(client, email="seller@test.com", password="password123"):
+    return register_user(client, email=email, password=password, role="seller")
+
+
+def create_product(
+    client,
+    headers: dict,
+    category_id: int,
+    name: str = "Phone",
+    price: str = "99.99",
+    stock: str = "10",
+    description: str | None = None,
+):
+    data = {
+        "name": name,
+        "price": price,
+        "stock": stock,
+        "category_id": str(category_id),
+    }
+    if description is not None:
+        data["description"] = description
+    return client.post("/products/", headers=headers, data=data)

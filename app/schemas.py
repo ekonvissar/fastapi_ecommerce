@@ -6,6 +6,13 @@ from fastapi import Form
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
+class CategoryBrief(BaseModel):
+    id: Annotated[int, Field(description="ID категории")]
+    name: Annotated[str, Field(description="Название категории")]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CategoryCreate(BaseModel):
     name: Annotated[
         str,
@@ -27,6 +34,9 @@ class Category(BaseModel):
         int | None, Field(None, description="ID родительской категории, если есть")
     ]
     is_active: Annotated[bool, Field(description="Активность категории")]
+    parent: Annotated[
+        CategoryBrief | None, Field(None, description="Родительская категория")
+    ]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -82,7 +92,25 @@ class Product(BaseModel):
     stock: Annotated[int, Field(description="Количество товара на складе")]
     rating: Annotated[float, Field(description="Рейтинг продукта")]
     category_id: Annotated[int, Field(description="ID категории")]
+    category: Annotated[
+        CategoryBrief | None, Field(None, description="Категория товара")
+    ]
     is_active: Annotated[bool, Field(description="Активность товара")]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProductSnapshot(BaseModel):
+    id: Annotated[int, Field(description="ID товара")]
+    name: Annotated[str, Field(description="Название товара на момент заказа")]
+    image_url: Annotated[str | None, Field(None, description="URL изображения")]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProductBrief(BaseModel):
+    id: Annotated[int, Field(description="ID товара")]
+    name: Annotated[str, Field(description="Название товара")]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -107,6 +135,13 @@ class User(BaseModel):
     email: Annotated[EmailStr, Field(description="Логин или почта")]
     is_active: Annotated[bool, Field(description="Активность пользователя")]
     role: Annotated[str, Field(description="Роль пользователя")]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserPublic(BaseModel):
+    id: Annotated[int, Field(description="ID пользователя")]
+    email: Annotated[EmailStr, Field(description="Email пользователя")]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -145,6 +180,11 @@ class Review(BaseModel):
     comment_date: Annotated[datetime, Field(description="Дата оставления отзыва")]
     grade: Annotated[int, Field(description="Оценка паользователя от 1 до 5")]
     is_active: Annotated[bool, Field(description="Активность отзыва")]
+    user: Annotated[UserPublic | None, Field(None, description="Автор отзыва")]
+    product: Annotated[
+        ProductBrief | None,
+        Field(None, description="Товар, к которому относится отзыв"),
+    ]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -211,7 +251,7 @@ class OrderItem(BaseModel):
         ..., ge=0, description="Цена за единицу на момент покупки"
     )
     total_price: Decimal = Field(..., ge=0, description="Сумма по позиции")
-    product: Product | None = Field(None, description="Полная информация о товаре")
+    product: ProductSnapshot = Field(..., description="Снимок товара на момент заказа")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -219,6 +259,7 @@ class OrderItem(BaseModel):
 class Order(BaseModel):
     id: int = Field(..., description="ID заказа")
     user_id: int = Field(..., description="ID пользователя")
+    user: UserPublic | None = Field(None, description="Покупатель для админ-эндпоинтов")
     status: str = Field(..., description="Текущий статус заказа")
     total_amount: Decimal = Field(..., ge=0, description="Общая стоимость")
     created_at: datetime = Field(..., description="Когда заказ был создан")
