@@ -153,17 +153,6 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
-class ProductList(BaseModel):
-    items: Annotated[list[Product], Field(description="Товары для текущей страницы")]
-    total: Annotated[int, Field(ge=0, description="Общее количество товаров")]
-    page: Annotated[int, Field(ge=1, description="Номер текущей страницы")]
-    page_size: Annotated[
-        int, Field(ge=1, description="Количество элементов на странице")
-    ]
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class CartItemBase(BaseModel):
     product_id: Annotated[int, Field(description="ID товара")]
     quantity: Annotated[int, Field(ge=1, description="Количество товара")]
@@ -200,7 +189,11 @@ class Cart(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# главная выходная модель, которая представляет всю корзину пользователя
+class PaginationResponse[T](BaseModel):
+    items: list[T] = Field(..., description="Элементы текущей страницы")
+    total: int = Field(ge=0, description="Общее количество")
+    page: int = Field(ge=1, description="Текущая страница")
+    page_size: int = Field(ge=1, description="Размер страницы")
 
 
 class OrderItem(BaseModel):
@@ -228,10 +221,5 @@ class Order(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class OrderList(BaseModel):
-    items: list[Order] = Field(..., description="Заказы на текущей странице")
-    total: int = Field(ge=0, description="Общее количество заказов")
-    page: int = Field(ge=1, description="Текущая страница")
-    page_size: int = Field(ge=1, description="Размер страницы")
-
-    model_config = ConfigDict(from_attributes=True)
+type ProductList = PaginationResponse[Product]
+type OrderList = PaginationResponse[Order]

@@ -3,7 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_admin, get_current_buyer
-from app.db_depends import get_async_db
+from app.db.deps import get_async_db
 from app.models import Product as ProductModel
 from app.models import Review as ReviewModel
 from app.models import User as UserModel

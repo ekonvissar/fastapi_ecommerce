@@ -1,5 +1,6 @@
 import uuid
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import (
     APIRouter,
@@ -14,7 +15,7 @@ from sqlalchemy import desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_seller
-from app.db_depends import get_async_db
+from app.db.deps import get_async_db
 from app.models import (
     Category as CategoryModel,
 )
@@ -149,7 +150,7 @@ async def get_all_products(
 @router.post("/", response_model=ProductSchema, status_code=status.HTTP_201_CREATED)
 async def create_product(
     product: ProductCreate = Depends(ProductCreate.as_form),
-    image: UploadFile | None = File(None),
+    image: Annotated[UploadFile | None, File()] = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: UserModel = Depends(get_current_seller),
 ):

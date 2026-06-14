@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db_depends import get_async_db
+from app.db.deps import get_async_db
 from app.models.categories import Category as CategoryModel
 from app.routers.products import products_router
 from app.schemas import Category as CategorySchema
