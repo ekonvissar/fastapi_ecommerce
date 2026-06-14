@@ -15,7 +15,7 @@ from app.auth import (
     verify_password,
 )
 from app.config import SettingsDep
-from app.db_depends import get_async_db, get_redis
+from app.db.deps import get_async_db, get_redis
 from app.models.users import User as UserModel
 from app.schemas import User as UsersSchema
 from app.schemas import UserCreate
@@ -81,23 +81,20 @@ async def login(
     )
     jti = refresh_payload["jti"]
 
-    # Сохраняем jti в Redis — whitelist
-    # Ключ: refresh:{user_id}:{jti}, значение: user_id, TTL = срок жизни токена
     await redis.set(
         f"refresh:{user.id}:{jti}",
         str(user.id),
         ex=COOKIE_MAX_AGE,
     )
 
-    # Все атрибуты куки одинаковые везде — иначе браузер считает их разными куками
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
-        httponly=True,  # недоступна из JS — защита от XSS
-        secure=True,  # только HTTPS
-        samesite="lax",  # защита от CSRF, но позволяет переходы по ссылкам
+        httponly=True,
+        secure=True,
+        samesite="lax",
         max_age=COOKIE_MAX_AGE,
-        path="/users",  # кука отправляется только на /users/*
+        path="/users",
     )
 
     return {
@@ -133,7 +130,6 @@ async def refresh(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
         )
 
-    # Исправленная проверка типа токена (был баг — "refresh_token" вместо "token_type")
     if payload.get("token_type") != "refresh":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Wrong token type"
@@ -143,19 +139,14 @@ async def refresh(
     user_id = payload.get("id")
     key = f"refresh:{user_id}:{jti}"
 
-    # Атомарно удаляем jti из Redis
-    # Если токен уже использован или не существует — возможна кража
     deleted = await redis.delete(key)
     if not deleted:
-        # Токен не найден в whitelist — либо уже использован, либо украден
-        # Удаляем все сессии пользователя на всякий случай
         async for k in redis.scan_iter(f"refresh:{user_id}:*"):
             await redis.delete(k)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token reuse detected"
         )
 
-    # Проверяем что пользователь существует и активен в БД
     user = await db.scalar(
         select(UserModel).where(
             UserModel.id == user_id,
@@ -168,19 +159,16 @@ async def refresh(
             detail="User not found or inactive",
         )
 
-    # Выпускаем новый access-токен
     new_access_token = create_access_token(
         {"sub": user.email, "role": user.role, "id": user.id},
         settings=settings,
     )
 
-    # Ротация refresh-токена — всегда выпускаем новый
     new_refresh_token = create_refresh_token(
         {"sub": user.email, "role": user.role, "id": user.id},
         settings=settings,
     )
 
-    # Достаём jti нового refresh-токена и сохраняем в Redis
     new_payload = jwt.decode(
         new_refresh_token,
         settings.jwt_secret,
@@ -189,7 +177,6 @@ async def refresh(
     )
     new_jti = new_payload["jti"]
 
-    # Исправлен баг с naive/aware datetime — используем fromtimestamp с tz=UTC
     exp = datetime.fromtimestamp(new_payload["exp"], tz=timezone.utc)
     now = datetime.now(timezone.utc)
     ttl = int((exp - now).total_seconds())
@@ -200,7 +187,6 @@ async def refresh(
         ex=ttl,
     )
 
-    # Те же атрибуты куки что и при логине
     response.set_cookie(
         key="refresh_token",
         value=new_refresh_token,
@@ -229,18 +215,16 @@ async def logout(
                 refresh_cookie,
                 settings.jwt_secret,
                 algorithms=[settings.algorithm],
-                options={"verify_exp": False},  # при логауте срок не важен
+                options={"verify_exp": False},
             )
             jti = payload.get("jti")
             user_id = payload.get("id")
 
-            # Удаляем refresh-токен из whitelist
             await redis.delete(f"refresh:{user_id}:{jti}")
 
         except jwt.PyJWTError:
-            pass  # токен повреждён — просто удаляем куку
+            pass
 
-    # Удаляем куку — те же атрибуты что при установке
     response.delete_cookie(
         key="refresh_token",
         httponly=True,

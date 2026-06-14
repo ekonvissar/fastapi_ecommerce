@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth import get_current_user
-from app.db_depends import get_async_db
+from app.db.deps import get_async_db
+from app.db.utils import get_by_id
 from app.models import CartItem as CartItemModel
 from app.models import Product as ProductModel
 from app.models import User as UserModel
@@ -30,12 +31,13 @@ cart_router = APIRouter(prefix="/items")
 
 
 async def _ensure_product_available(db: AsyncSession, product_id: int) -> None:
-    result = await db.scalars(
-        select(ProductModel).where(
-            ProductModel.id == product_id, ProductModel.is_active
-        )
+    product = await get_by_id(
+        db,
+        ProductModel,
+        product_id,
+        extra_filters=(ProductModel.is_active.is_(True),),
     )
-    product = result.first()
+
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -72,7 +74,7 @@ async def get_cart(
         .where(CartItemModel.user_id == current_user.id)
         .order_by(CartItemModel.id)
     )
-    items = result.all()
+    items = list(result.all())
 
     total_quantity = sum(item.quantity for item in items)
     price_items = (

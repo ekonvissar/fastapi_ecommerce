@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from typing import Literal, TypedDict
 from uuid import uuid4
 
 import jwt
@@ -9,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, SettingsDep
-from app.db_depends import get_async_db
+from app.db.deps import get_async_db
 from app.models.users import User as UserModel
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -17,6 +18,13 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="users/token")
+Role = Literal["buyer", "seller", "admin"]
+
+
+class TokenUserData(TypedDict):
+    sub: str
+    role: Role
+    id: int
 
 
 def hash_password(password: str) -> str:
@@ -27,14 +35,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: dict, settings: Settings) -> str:
+def create_access_token(data: TokenUserData, settings: Settings) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "token_type": "access", "jti": str(uuid4())})
     return jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.algorithm)
 
 
-def create_refresh_token(data: dict, settings: Settings) -> str:
+def create_refresh_token(data: TokenUserData, settings: Settings) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "token_type": "refresh", "jti": str(uuid4())})
@@ -79,28 +87,18 @@ async def get_current_user(
     return user
 
 
-async def get_current_seller(current_user: UserModel = Depends(get_current_user)):
-    if current_user.role != "seller":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only sellers can perform this action",
-        )
-    return current_user
+def required_role(role: Role):
+    async def dep(current_user: UserModel = Depends(get_current_user)) -> UserModel:
+        if current_user.role != role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Only {role}s can perform this action",
+            )
+        return current_user
+
+    return dep
 
 
-async def get_current_buyer(current_user: UserModel = Depends(get_current_user)):
-    if current_user.role != "buyer":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only buyers can perform this action",
-        )
-    return current_user
-
-
-async def get_current_admin(current_user: UserModel = Depends(get_current_user)):
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can perform this action",
-        )
-    return current_user
+get_current_seller = required_role("seller")
+get_current_buyer = required_role("buyer")
+get_current_admin = required_role("admin")

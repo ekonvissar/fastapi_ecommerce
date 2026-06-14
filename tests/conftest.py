@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.auth import create_access_token
 from app.config import get_settings
-from app.db_depends import get_async_db, get_redis
+from app.db.deps import get_async_db, get_redis
 from app.main import app
 from app.models.cart_items import CartItem
 from app.models.categories import Category

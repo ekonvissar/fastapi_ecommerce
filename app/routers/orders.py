@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth import get_current_user
-from app.db_depends import get_async_db
+from app.db.deps import get_async_db
+from app.db.utils import get_by_id
 from app.models.cart_items import CartItem as CartItemModel
 from app.models.orders import Order as OrderModel
 from app.models.orders import OrderItem as OrderItemModel
@@ -14,6 +15,7 @@ from app.models.users import User as UserModel
 from app.schemas import Order as OrderSchema
 from app.schemas import OrderList
 from app.ws.manager import ws_manager
+from app.ws.messages import OrderCreatedMessage
 
 router = APIRouter(
     prefix="/orders",
@@ -22,12 +24,12 @@ router = APIRouter(
 
 
 async def _load_order_with_items(db: AsyncSession, order_id: int) -> OrderModel | None:
-    result = await db.scalars(
-        select(OrderModel)
-        .options(selectinload(OrderModel.items).selectinload(OrderItemModel.product))
-        .where(OrderModel.id == order_id)
+    return await get_by_id(
+        db,
+        OrderModel,
+        order_id,
+        options=(selectinload(OrderModel.items).selectinload(OrderItemModel.product),),
     )
-    return result.first()
 
 
 @router.post(
@@ -99,15 +101,14 @@ async def checkout_order(
             detail="Failed to load order",
         )
 
-    await ws_manager.notify_user(
-        current_user.id,
-        {
-            "type": "order_created",
-            "order_id": created_order.id,
-            "status": created_order.status,
-            "total_amount": str(created_order.total_amount),
-        },
-    )
+    message: OrderCreatedMessage = {
+        "type": "order_created",
+        "order_id": created_order.id,
+        "status": created_order.status,
+        "total_amount": str(created_order.total_amount),
+    }
+    await ws_manager.notify_user(current_user.id, message)
+
     return created_order
 
 
@@ -118,9 +119,14 @@ async def list_orders(
     db: AsyncSession = Depends(get_async_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    total = await db.scalar(
-        select(func.count(OrderModel.id)).where(OrderModel.user_id == current_user.id)
-    )
+    total = (
+        await db.scalar(
+            select(func.count(OrderModel.id)).where(
+                OrderModel.user_id == current_user.id
+            )
+        )
+    ) or 0
+
     result = await db.scalars(
         select(OrderModel)
         .options(selectinload(OrderModel.items).selectinload(OrderItemModel.product))

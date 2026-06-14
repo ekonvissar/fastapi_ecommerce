@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from loguru import logger
 
 from app.config import get_settings
-from app.database import async_engine
+from app.db.session import async_engine
 from app.redis import redis_client
 
 

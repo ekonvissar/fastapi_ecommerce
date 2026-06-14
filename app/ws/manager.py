@@ -1,5 +1,7 @@
 from fastapi import WebSocket
 
+from app.ws.messages import OrderCreatedMessage
+
 
 class ConnectionManager:
     """Хранит активные WebSocket-соединения по user_id."""
@@ -18,7 +20,7 @@ class ConnectionManager:
         if not sockets:
             self._connections.pop(user_id, None)
 
-    async def notify_user(self, user_id: int, message: dict) -> None:
+    async def notify_user(self, user_id: int, message: OrderCreatedMessage) -> None:
         dead_sockets: list[WebSocket] = []
         for websocket in self._connections.get(user_id, []):
             try:

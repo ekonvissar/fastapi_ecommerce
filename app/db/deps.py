@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator
 from redis.client import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import async_session_maker
+from app.db.session import async_session_maker
 from app.redis import redis_client
 
 
