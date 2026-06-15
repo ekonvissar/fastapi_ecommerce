@@ -1,11 +1,18 @@
 import importlib
-from pathlib import Path
-from pkgutil import iter_modules
+
+ROUTER_MODULES = (
+    "app.identity.api.router",
+    "app.catalog.api.categories_router",
+    "app.catalog.api.products_router",
+    "app.catalog.api.reviews_router",
+    "app.ordering.api.router",
+    "app.ordering.api.cart_router",
+    "app.notifications.api.ws_router",
+    "app.shared.api.health_router",
+)
 
 
-def include_routers(app):
-    package_dir = Path(__file__).resolve().parent / "routers"
-    for _, module_name, _ in iter_modules([str(package_dir)]):
-        module = importlib.import_module(f"app.routers.{module_name}")
-        if hasattr(module, "router"):
-            app.include_router(module.router)
+def include_routers(app) -> None:
+    for module_path in ROUTER_MODULES:
+        module = importlib.import_module(module_path)
+        app.include_router(module.router)

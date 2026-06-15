@@ -1,6 +1,6 @@
 from fastapi import WebSocket
 
-from app.ws.messages import OrderCreatedMessage
+from app.notifications.ws.messages import OrderCreatedMessage
 
 
 class ConnectionManager:

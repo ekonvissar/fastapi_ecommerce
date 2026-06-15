@@ -1,18 +1,14 @@
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 from app.config import SettingsDep
-from app.ws.auth import get_user_id_from_token
-from app.ws.manager import ws_manager
+from app.notifications.ws.auth import get_user_id_from_token
+from app.notifications.ws.manager import ws_manager
 
 router = APIRouter(tags=["websocket"])
 
 
 @router.websocket("/ws/echo")
 async def echo_websocket(websocket: WebSocket):
-    """
-    Шаг 1: учебный эндпоинт без авторизации.
-    Клиент шлёт текст — сервер возвращает его обратно.
-    """
     await websocket.accept()
     await websocket.send_json(
         {"type": "connected", "message": "Echo WebSocket is ready"}
@@ -32,10 +28,6 @@ async def orders_websocket(
     settings: SettingsDep,
     token: str = Query(..., description="JWT access token"),
 ):
-    """
-    Шаги 2–4: личный канал пользователя.
-    Сюда приходят события о заказах (например, после checkout).
-    """
     try:
         user_id = get_user_id_from_token(token, settings)
     except Exception:
