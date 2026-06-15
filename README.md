@@ -2,7 +2,8 @@
 
 ![Tests](https://github.com/ekonvissar/fastapi_ecommerce/actions/workflows/tests.yml/badge.svg)
 
-Backend интернет-магазина на FastAPI. Учебный проект, но с нормальными штуками: async PostgreSQL, Redis, JWT, роли, корзина, заказы, WebSocket при checkout.
+Backend интернет-магазина на FastAPI. Учебный проект: async PostgreSQL, Redis, JWT, роли, корзина, заказы, WebSocket при
+checkout.
 
 **Стек:** FastAPI · SQLAlchemy 2 (async) · PostgreSQL · Redis · Alembic · pytest
 
@@ -61,6 +62,7 @@ Production-вариант: `docker compose -f docker-compose.prod.yml up --build
 **Роли:** `buyer`, `seller`, `admin`
 
 **Основные роуты:**
+
 - `/users` — регистрация, логин, refresh/logout
 - `/categories`, `/products` — каталог
 - `/cart`, `/orders` — корзина и checkout
@@ -70,6 +72,32 @@ Production-вариант: `docker compose -f docker-compose.prod.yml up --build
 Access token — в заголовке `Authorization: Bearer ...`. Refresh — httpOnly cookie на `/users`, jti в Redis.
 
 Celery в проекте есть, но по сути демо (`app/task.py`), worker в compose не поднимается.
+
+---
+
+## Архитектура
+
+**Modular layered monolith** — один деплой, одна БД, код разбит по доменам и слоям:
+
+```
+API (router)  →  Service  →  Repository  →  ORM / PostgreSQL
+```
+
+| Модуль           | Что внутри                                        |
+|------------------|---------------------------------------------------|
+| `identity/`      | пользователи, JWT, refresh в Redis                |
+| `catalog/`       | категории, товары, отзывы                         |
+| `ordering/`      | корзина, заказы, checkout                         |
+| `notifications/` | WebSocket                                         |
+| `shared/`        | общие ошибки, exception handlers, схема `Product` |
+| `models/`        | SQLAlchemy-модели (общие для всех модулей)        |
+
+Роутеры подключаются явно в `app/router_loader.py`
+
+Доменные ошибки (`CartEmptyError`, `IdentityError`, `CatalogError` и т.д.) всплывают из сервисов и превращаются в
+HTTP-ответы в `shared/exception_handlers.py`.
+
+`app/auth.py` — тонкий re-export из `identity/` (чтобы импортировался `get_current_user`).
 
 ---
 
