@@ -2,8 +2,7 @@
 
 ![Tests](https://github.com/ekonvissar/fastapi_ecommerce/actions/workflows/tests.yml/badge.svg)
 
-Backend интернет-магазина на FastAPI. Учебный проект: async PostgreSQL, Redis, JWT, роли, корзина, заказы, WebSocket при
-checkout.
+Backend интернет-магазина на FastAPI. Учебный проект: async PostgreSQL, Redis, JWT, роли, корзина, заказы, WebSocket при checkout.
 
 **Стек:** FastAPI · SQLAlchemy 2 (async) · PostgreSQL · Redis · Alembic · pytest
 
@@ -122,3 +121,17 @@ export REDIS_URL="redis://localhost:6379/0"
 В `TestClient` нужен `base_url="http://localhost"` — иначе `TrustedHostMiddleware` отдаст 400.
 
 CI: GitHub Actions на push/PR в `main`, `master`, `additional-features` — см. `.github/workflows/tests.yml`.
+
+---
+
+## Dev-инструменты
+
+```bash
+pip install -r requirements-dev.txt
+pre-commit install          # хуки на commit
+pre-commit run --all-files  # проверить всё сразу
+```
+
+Ruff: `ruff check app tests` · `ruff format app tests`
+
+Миграции: `alembic revision --autogenerate -m "..."` → `alembic upgrade head`
